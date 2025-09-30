@@ -2,12 +2,14 @@
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <title>Adamas Pro - Brush Masking Tool (Adjustable Transparency)</title>
+  <title>Adamas Pro - Brush Masking Tool (Responsive & Transparent)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       background: #f9f9f9;
+      margin: 0;
+      padding: 0;
     }
     .container {
       margin: 20px auto;
@@ -21,7 +23,7 @@
       border: 1px solid #ccc;
       margin-top: 15px;
       cursor: crosshair;
-      max-width: 100%;
+      width: 100%;
       height: auto;
     }
     .controls {
@@ -32,6 +34,7 @@
       padding: 8px 12px;
       border-radius: 6px;
       border: 1px solid #ccc;
+      font-size: 14px;
     }
     button {
       cursor: pointer;
@@ -125,22 +128,32 @@
     let drawing = false;
     let brushSize = 20;
     let brushColor = colorPicker.value;
-    let brushAlpha = 0.5; // αρχική διαφάνεια 50%
+    let brushAlpha = 0.5;
     let history = [];
 
     document.getElementById('upload').addEventListener('change', function(e) {
       const reader = new FileReader();
       reader.onload = function(event) {
         img.onload = function() {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+          resizeCanvas();
           saveState();
         }
         img.src = event.target.result;
       }
       reader.readAsDataURL(e.target.files[0]);
     });
+
+    window.addEventListener('resize', () => {
+      if(img.src) resizeCanvas();
+    });
+
+    function resizeCanvas() {
+      const containerWidth = canvas.parentElement.clientWidth;
+      const scale = containerWidth / img.width;
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    }
 
     canvas.addEventListener('mousedown', () => { drawing = true; });
     canvas.addEventListener('mouseup', () => { drawing = false; saveState(); });
@@ -156,11 +169,11 @@
       const y = (e.clientY - rect.top) * scaleY;
 
       ctx.fillStyle = brushColor;
-      ctx.globalAlpha = brushAlpha; // χρήση διαφάνειας
+      ctx.globalAlpha = brushAlpha;
       ctx.beginPath();
       ctx.arc(x, y, brushSize, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = 1; // επαναφορά
+      ctx.globalAlpha = 1;
     }
 
     document.getElementById('brushSize').addEventListener('input', (e) => {
@@ -172,7 +185,7 @@
     });
 
     document.getElementById('brushAlpha').addEventListener('input', (e) => {
-      brushAlpha = e.target.value / 100; // 0.0 έως 1.0
+      brushAlpha = e.target.value / 100;
     });
 
     function saveState() {
@@ -187,7 +200,7 @@
         imgRestore.src = history[history.length - 1];
         imgRestore.onload = () => {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(imgRestore, 0, 0);
+          ctx.drawImage(imgRestore, 0, 0, canvas.width, canvas.height);
         }
       }
     }
@@ -195,7 +208,7 @@
     function clearCanvas() {
       if (img.src) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         saveState();
       }
     }
