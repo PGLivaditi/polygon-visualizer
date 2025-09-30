@@ -2,7 +2,7 @@
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <title>Adamas Pro - Brush Masking Tool (Transparent)</title>
+  <title>Adamas Pro - Brush Masking Tool (Adjustable Transparency)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -42,22 +42,25 @@
     button:hover {
       background: #0056b3;
     }
-    /* Προσθήκη για μικρό δείγμα χρώματος δίπλα στο option */
-    option::before {
-      content: '⬛ ';
+    label {
+      display: inline-block;
+      margin-left: 5px;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>Adamas Pro - Brush Masking Tool</h2>
-    <p>Ανέβασε μια φωτογραφία και βάψε τις περιοχές με ημιδιαφανές χρώμα για πιο φυσικό αποτέλεσμα.</p>
+    <p>Ανέβασε μια φωτογραφία και βάψε τις περιοχές με ημιδιαφανές χρώμα. Ρύθμισε τη διαφάνεια της βούρτσας όπως θέλεις.</p>
 
     <div class="controls">
       <input type="file" id="upload" accept="image/*">
       <select id="colorPicker"></select>
       <label>Brush size: 
         <input type="range" id="brushSize" min="5" max="50" value="20">
+      </label>
+      <label>Brush transparency: 
+        <input type="range" id="brushAlpha" min="0" max="100" value="50">
       </label>
       <button onclick="undo()">↩ Undo</button>
       <button onclick="clearCanvas()">🗑 Clear</button>
@@ -122,6 +125,7 @@
     let drawing = false;
     let brushSize = 20;
     let brushColor = colorPicker.value;
+    let brushAlpha = 0.5; // αρχική διαφάνεια 50%
     let history = [];
 
     document.getElementById('upload').addEventListener('change', function(e) {
@@ -145,20 +149,18 @@
 
     function draw(e) {
       if (!drawing) return;
-
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-
       const x = (e.clientX - rect.left) * scaleX;
       const y = (e.clientY - rect.top) * scaleY;
 
       ctx.fillStyle = brushColor;
-      ctx.globalAlpha = 0.5; // 50% διαφάνεια
+      ctx.globalAlpha = brushAlpha; // χρήση διαφάνειας
       ctx.beginPath();
       ctx.arc(x, y, brushSize, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = 1; // επαναφορά πλήρους αδιαφάνειας
+      ctx.globalAlpha = 1; // επαναφορά
     }
 
     document.getElementById('brushSize').addEventListener('input', (e) => {
@@ -167,6 +169,10 @@
 
     colorPicker.addEventListener('change', (e) => {
       brushColor = e.target.value;
+    });
+
+    document.getElementById('brushAlpha').addEventListener('input', (e) => {
+      brushAlpha = e.target.value / 100; // 0.0 έως 1.0
     });
 
     function saveState() {
