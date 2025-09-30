@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <title>Adamas Pro - Brush Masking Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin:0; padding:0;
+      background:#f9f9f9;
+      text-align:center;
+    }
+    .container {
+      max-width:900px;
+      margin:20px auto;
+      padding:20px;
+      background:#fff;
+      border-radius:12px;
+      box-shadow:0 4px 15px rgba(0,0,0,0.1);
+    }
+    canvas {
+      border:1px solid #ccc;
+      margin-top:15px;
+      cursor:crosshair;
+      width:100%;
+      height:auto;
+      display:block;
+    }
+    .controls {
+      margin:10px 0;
+    }
+    select,input,button {
+      margin:5px;
+      padding:8px 12px;
+      border-radius:6px;
+      border:1px solid #ccc;
+      font-size:14px;
+    }
+    button { background:#007bff; color:#fff; border:none; cursor:pointer; }
+    button:hover { background:#0056b3; }
+    label { margin-left:5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Adamas Pro - Brush Masking Tool</h2>
+    <p>Ανέβασε μια φωτογραφία και βάψε περιοχές με ημιδιαφανές χρώμα. Ρύθμισε τη διαφάνεια της βούρτσας.</p>
+
+    <div class="controls">
+      <input type="file" id="upload" accept="image/*">
+      <select id="colorPicker"></select>
+      <label>Brush size: <input type="range" id="brushSize" min="5" max="50" value="20"></label>
+      <label>Brush transparency: <input type="range" id="brushAlpha" min="0" max="100" value="50"></label>
+      <button onclick="undo()">↩ Undo</button>
+      <button onclick="clearCanvas()">🗑 Clear</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+  </div>
+
+<script>
+const colors = [
+  {code:"01",name:"Blanco",hex:"#ffffff"}, {code:"02",name:"Ivory Cream",hex:"#faf1dd"},
+  {code:"03",name:"Linen",hex:"#dddddd"}, {code:"04",name:"Taupe Greize",hex:"#d7cec8"},
+  {code:"05",name:"Sand",hex:"#e4d2aa"}, {code:"06",name:"Sepia",hex:"#ad905a"},
+  {code:"07",name:"Mocha Mousse",hex:"#b08d6a"}, {code:"08",name:"Leather",hex:"#a96a2d"},
+  {code:"09",name:"Chocolato",hex:"#744f42"}, {code:"10",name:"Espresso",hex:"#5a3726"},
+  {code:"11",name:"Burnt Brown",hex:"#58462b"}, {code:"12",name:"Nero",hex:"#000000"},
+  {code:"13",name:"Off Black",hex:"#3b4345"}, {code:"14",name:"Dark Grey",hex:"#515151"},
+  {code:"15",name:"Pepper",hex:"#4e544e"}, {code:"16",name:"Roccia Grey",hex:"#bdbec3"},
+  {code:"17",name:"Clear Sky",hex:"#b1adc1"}, {code:"18",name:"Morning Fog",hex:"#babfb5"},
+  {code:"19",name:"Vino",hex:"#9f021b"}, {code:"20",name:"Rosseto",hex:"#af080f"},
+  {code:"21",name:"Terracotta Rosso",hex:"#c55a4c"}, {code:"22",name:"Nude Pink",hex:"#ecbeb4"},
+  {code:"23",name:"Rose Mist",hex:"#f598a3"}, {code:"24",name:"Fucsia",hex:"#af2744"},
+  {code:"25",name:"Bougainville",hex:"#78000e"}, {code:"26",name:"Mandarino",hex:"#f1771f"},
+  {code:"27",name:"Mango Split",hex:"#f0a311"}, {code:"28",name:"Butter Cream",hex:"#f6e667"},
+  {code:"29",name:"Royal Blue",hex:"#003771"}, {code:"30",name:"Lavender",hex:"#475696"},
+  {code:"31",name:"Blue Jean",hex:"#417080"}, {code:"32",name:"Lagoon",hex:"#588c7c"},
+  {code:"33",name:"Pavone",hex:"#1c4755"}, {code:"34",name:"Wood Pine",hex:"#27431d"},
+  {code:"35",name:"Olive",hex:"#6f712b"}, {code:"36",name:"Leaf",hex:"#516b46"},
+  {code:"37",name:"Sea Salt",hex:"#8bc094"}, {code:"38",name:"Magenda",hex:"#910e48"}
+];
+
+const colorPicker = document.getElementById('colorPicker');
+colors.forEach(c=>{
+  const opt=document.createElement('option');
+  opt.value=c.hex;
+  opt.textContent=`${c.code} - ${c.name}`;
+  colorPicker.appendChild(opt);
+});
+
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+let img=new Image(),drawing=false,brushSize=20,brushColor=colorPicker.value,brushAlpha=0.5,history=[];
+
+document.getElementById('upload').addEventListener('change',e=>{
+  const reader=new FileReader();
+  reader.onload=function(event){
+    img.onload=function(){
+      resizeCanvas();
+      saveState();
+    }
+    img.src=event.target.result;
+  }
+  reader.readAsDataURL(e.target.files[0]);
+});
+
+window.addEventListener('resize',()=>{ if(img.src) resizeCanvas(); });
+
+function resizeCanvas(){
+  const containerWidth=canvas.parentElement.clientWidth;
+  const scale=containerWidth/img.width;
+  canvas.width=img.width*scale;
+  canvas.height=img.height*scale;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+}
+
+canvas.addEventListener('mousedown',()=>{drawing=true;});
+canvas.addEventListener('mouseup',()=>{drawing=false; saveState();});
+canvas.addEventListener('mouseleave',()=>{drawing=false;});
+canvas.addEventListener('mousemove',draw);
+
+function draw(e){
+  if(!drawing) return;
+  const rect=canvas.getBoundingClientRect();
+  const scaleX=canvas.width/rect.width;
+  const scaleY=canvas.height/rect.height;
+  const x=(e.clientX-rect.left)*scaleX;
+  const y=(e.clientY-rect.top)*scaleY;
+
+  ctx.fillStyle=brushColor;
+  ctx.globalAlpha=brushAlpha;
+  ctx.beginPath();
+  ctx.arc(x,y,brushSize,0,Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha=1;
+}
+
+document.getElementById('brushSize').addEventListener('input',e=>{brushSize=e.target.value;});
+colorPicker.addEventListener('change',e=>{brushColor=e.target.value;});
+document.getElementById('brushAlpha').addEventListener('input',e=>{brushAlpha=e.target.value/100;});
+
+function saveState(){
+  history.push(canvas.toDataURL());
+  if(history.length>20) history.shift();
+}
+function undo(){
+  if(history.length>1){
+    history.pop();
+    let imgRestore=new Image();
+    imgRestore.src=history[history.length-1];
+    imgRestore.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(imgRestore,0,0,canvas.width,canvas.height);}
+  }
+}
+function clearCanvas(){
+  if(img.src){ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height); saveState();}
+}
+</script>
+</body>
+</html>
