@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<title>Adamas Pro Polygon Visualizer</title>
+<style>
+body { font-family: Arial, sans-serif; margin:20px; background:#f5f5f5; }
+h2 { text-align:center; margin-bottom:10px; }
+#controls { text-align:center; margin-bottom:10px; }
+canvas { border:1px solid #ccc; display:block; margin:auto; cursor:crosshair; }
+select { margin:0 5px; padding:2px 5px; }
+button { margin:0 5px; padding:3px 6px; }
+#maskList { text-align:center; margin-top:10px; }
+.maskItem { display:inline-block; padding:4px 8px; margin:2px; border-radius:4px; background:#fff; border:1px solid #ccc; cursor:pointer; }
+.maskColorBox { width:14px; height:14px; display:inline-block; margin-right:4px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<h2>Adamas Pro — Polygon Visualizer</h2>
+<div id="controls">
+  <input type="file" id="upload" accept="image/*">
+  <select id="colorSelect"></select>
+  <button id="newMask">Νέα Μάσκα</button>
+  <button id="undo">Undo</button>
+  <button id="clear">Διαγραφή Όλων</button>
+  <button id="save">Αποθήκευση</button>
+</div>
+<div id="maskList"></div>
+<canvas id="canvas"></canvas>
+
+<script>
+const colors = [
+{code:"01",name:"Blanco",hex:"#ffffff"},{code:"02",name:"Ivory Cream",hex:"#faf1dd"},
+{code:"03",name:"Linen",hex:"#dddddd"},{code:"04",name:"Taupe Greize",hex:"#d7cec8"},
+{code:"05",name:"Sand",hex:"#e4d2aa"},{code:"06",name:"Sepia",hex:"#ad905a"},
+{code:"07",name:"Mocha Mousse",hex:"#b08d6a"},{code:"08",name:"Leather",hex:"#a96a2d"},
+{code:"09",name:"Chocolato",hex:"#744f42"},{code:"10",name:"Espresso",hex:"#5a3726"},
+{code:"11",name:"Burnt Brown",hex:"#58462b"},{code:"12",name:"Nero",hex:"#000000"},
+{code:"13",name:"Off Black",hex:"#3b4345"},{code:"14",name:"Dark Grey",hex:"#515151"},
+{code:"15",name:"Pepper",hex:"#4e544e"},{code:"16",name:"Roccia Grey",hex:"#bdbec3"},
+{code:"17",name:"Clear Sky",hex:"#b1adc1"},{code:"18",name:"Morning Fog",hex:"#babfb5"},
+{code:"19",name:"Vino",hex:"#9f021b"},{code:"20",name:"Rosseto",hex:"#af080f"},
+{code:"21",name:"Terracotta Rosso",hex:"#c55a4c"},{code:"22",name:"Nude Pink",hex:"#ecbeb4"},
+{code:"23",name:"Rose Mist",hex:"#f598a3"},{code:"24",name:"Fucsia",hex:"#af2744"},
+{code:"25",name:"Bougainville",hex:"#78000e"},{code:"26",name:"Mandarino",hex:"#f1771f"},
+{code:"27",name:"Mango Split",hex:"#f0a311"},{code:"28",name:"Butter Cream",hex:"#f6e667"},
+{code:"29",name:"Royal Blue",hex:"#003771"},{code:"30",name:"Lavender",hex:"#475696"},
+{code:"31",name:"Blue Jean",hex:"#417080"},{code:"32",name:"Lagoon",hex:"#588c7c"},
+{code:"33",name:"Pavone",hex:"#1c4755"},{code:"34",name:"Wood Pine",hex:"#27431d"},
+{code:"35",name:"Olive",hex:"#6f712b"},{code:"36",name:"Leaf",hex:"#516b46"},
+{code:"37",name:"Sea Salt",hex:"#8bc094"},{code:"38",name:"Magenda",hex:"#910e48"}
+];
+
+const upload=document.getElementById('upload');
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const colorSelect=document.getElementById('colorSelect');
+const newMaskBtn=document.getElementById('newMask');
+const undoBtn=document.getElementById('undo');
+const clearBtn=document.getElementById('clear');
+const saveBtn=document.getElementById('save');
+const maskList=document.getElementById('maskList');
+
+let image=null;
+let drawing=false;
+let masks=[];
+let currentMask=null;
+
+colors.forEach(c=>{
+  const opt=document.createElement('option');
+  opt.value=c.hex; opt.textContent=c.code+" "+c.name;
+  colorSelect.appendChild(opt);
+});
+
+upload.addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=evt=>{
+    image=new Image();
+    image.onload=()=>{
+      canvas.width=image.width>800?800:image.width;
+      canvas.height=image.height>600?600:image.height;
+      redraw();
+    };
+    image.src=evt.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+canvas.addEventListener('mousedown',e=>{
+  if(!currentMask) return;
+  drawing=true;
+  currentMask.path.push(getPos(e));
+  redraw();
+});
+canvas.addEventListener('mousemove',e=>{
+  if(drawing && currentMask){
+    currentMask.path.push(getPos(e));
+    redraw();
+  }
+});
+canvas.addEventListener('mouseup',e=>{ drawing=false; });
+canvas.addEventListener('mouseleave',e=>{ drawing=false; });
+
+function getPos(e){
+  const rect=canvas.getBoundingClientRect();
+  return {x:e.clientX-rect.left,y:e.clientY-rect.top};
+}
+
+function redraw(){
+  if(!image) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  masks.forEach(m=>{
+    if(m.path.length>0){
+      ctx.fillStyle=m.color+'cc'; // πιο δυνατή ημιδιαφάνεια
+      ctx.beginPath();
+      ctx.moveTo(m.path[0].x,m.path[0].y);
+      for(let i=1;i<m.path.length;i++) ctx.lineTo(m.path[i].x,m.path[i].y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  });
+}
+
+newMaskBtn.addEventListener('click',()=>{
+  const color=colorSelect.value;
+  currentMask={color:color,path:[]};
+  masks.push(currentMask);
+  updateMaskList();
+});
+
+undoBtn.addEventListener('click',()=>{
+  if(currentMask && currentMask.path.length>0){
+    currentMask.path.pop();
+    redraw();
+  }
+});
+
+clearBtn.addEventListener('click',()=>{
+  masks=[]; currentMask=null; updateMaskList(); redraw();
+});
+
+saveBtn.addEventListener('click',()=>{
+  const link=document.createElement('a');
+  link.download='visualized.png';
+  link.href=canvas.toDataURL();
+  link.click();
+});
+
+function updateMaskList(){
+  maskList.innerHTML="";
+  masks.forEach((m,i)=>{
+    const div=document.createElement('div');
+    div.className='maskItem';
+    div.innerHTML='<span class="maskColorBox" style="background:'+m.color+'"></span>Μάσκα '+(i+1);
+    div.onclick=()=>{ currentMask=m; colorSelect.value=m.color; };
+    const delBtn=document.createElement('button');
+    delBtn.textContent='X';
+    delBtn.style.marginLeft='4px';
+    delBtn.onclick=(e)=>{ e.stopPropagation(); masks.splice(i,1); if(currentMask===m) currentMask=null; updateMaskList(); redraw(); };
+    div.appendChild(delBtn);
+    maskList.appendChild(div);
+  });
+}
+</script>
+</body>
+</html>
